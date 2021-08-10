@@ -34,7 +34,7 @@ class Agent:
 
         self.FINAL_EPS = 0.1
         self.INITIAL_REPLAY_SIZE = 1000
-        self.NUM_REPLAY_MEMORY = 100000
+        self.NUM_REPLAY_MEMORY = 20000
         self.TRAIN_INTERVAL = 4
         self.TARGET_UPDATE_INTERVAL = 10
         self.BATCH_SIZE = 32
@@ -129,6 +129,34 @@ class Agent:
             x_train, y_batch, epochs=5, verbose=0, batch_size=self.BATCH_SIZE) #verbose=0でno log
 
 
+    def train_network_batch(self):
+        states, actions, rewards, next_states, dones = self.get_minibatch()
+
+        next_Qs = np.max(self.target_net.predict(next_states), axis=1) #max_a(Q_{target}(s', a))
+        pass
+
+    def get_minibatch(self) -> Tuple(np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray):
+        state_batch = []
+        action_batch = []
+        reward_batch = []
+        next_state_batch = []
+        done_batch = []
+
+        minibatch = random.sample(self.episode_memory, self.BATCH_SIZE)
+        for data in minibatch:
+            state_batch.append(data[0])
+            action_batch.append(data[1])
+            reward_batch.append(data[2]) 
+            next_state_batch.append(data[3])
+            done_batch.append(data[4])
+
+        state_batch = np.array(state_batch)
+        action_batch = np.array(action_batch)
+        reward_batch = np.array(reward_batch)
+        next_state_batch = np.array(next_state_batch)
+        done_batch = np.array(done_batch, dtype=int)
+
+        return (state_batch, action_batch, reward_batch, next_state_batch, done_batch)
     
     def update_target_net(self):
         for i in range(len(self.target_net.weights)):
