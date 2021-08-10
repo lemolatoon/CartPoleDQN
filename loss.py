@@ -4,7 +4,7 @@ import numpy as np
 class action_loss:
 
     def __init__(self, selected_actions, num_actions):
-        self.selected_actions_onehot = tf.onehot(selected_actions, num_actions) #選択したactionを保存
+        self.selected_actions_onehot = tf.one_hot(selected_actions, num_actions) #選択したactionを保存
 
     
 

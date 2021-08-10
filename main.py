@@ -175,7 +175,10 @@ class Agent:
             self.target_net.weights[i].assign(self.q_net.weights[i]) #代入
         
         x = np.ones(shape=(self.BATCH_SIZE, 4))
-        assert self.q_net.predict(x) == self.target_net.predict(x) #計算結果が同じでなければならない
+        ys1 = self.q_net(x).numpy().reshape(-1)
+        ys2 = self.target_net(x).numpy().reshape(-1)
+        for y1, y2 in zip(ys1, ys2):
+            assert y1 == y2 #計算結果が同じでなければならない
 
 
 
