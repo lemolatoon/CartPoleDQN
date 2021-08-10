@@ -108,12 +108,13 @@ class Agent:
         next_state_batch = np.array(next_state_batch)
         done_batch = np.array(done_batch, dtype=int)
 
-        target_q_values_batch = np.zeros((self.BATCH_SIZE,)) #memory確保
+        #target_q_values_batch = np.zeros((self.BATCH_SIZE,)) #memory確保
+        target_q_values_batch = np.zeros((size,)) #memory確保
 
         for i in range(self.num_actions): #すべてのactionについてq値を計算
             #print(np.array(next_state_batch).shape)
             #print(np.concatenate([next_state_batch, np.full(shape=(self.BATCH_SIZE, 1), fill_value=i)], axis=1))
-            x = np.concatenate([next_state_batch, np.full(shape=(self.BATCH_SIZE, 1), fill_value=i)], axis=1) #(s, a)を結合
+            x = np.concatenate([next_state_batch, np.full(shape=(size, 1), fill_value=i)], axis=1) #(s, a)を結合
             y = self.target_net(np.array(x))
             y = y.numpy().reshape(-1) #縦のべくとるを横のベクトルにする
             target_q_values_batch = np.maximum(y, target_q_values_batch) #各アクションの中で最も大きいものを取る
