@@ -2,19 +2,24 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
 
-class Qnetwork(tf.keras.Model):
+class Qnetwork(tf.keras.Model()):
 
     def __init__(self, num_actions, learning_rate=0.001):
 
-        super(Qnetwork, self()).__init__()
 
         self.num_actions = num_actions
 
-        self.dense1 = layers.Dense(128, activation="relu", kernel_initializer="he_normal")
-        self.dense2 = layers.Dense(128, activation="relu", kernel_initializer="he_normal")
-        self.out = layers.Dense(num_actions, kernel_initializer="he_normal") #action(one-hot)
+        inputs = tf.keras.Input(shape=(4,)) #state
+        x = layers.Dense(128, activation="relu", kernel_initializer="he_normal")(inputs)
+        x = layers.Dense(128, activation="relu", kernel_initializer="he_normal")(x)
+        outputs = layers.Dense(num_actions, kernel_initializer="he_normal")(x) #action(one-hot)
+
+        super().__init__(inputs=inputs, outputs=outputs)
+
 
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+
+        self.summary()
 
     
     @tf.function

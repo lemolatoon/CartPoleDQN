@@ -14,7 +14,7 @@ import statistics
 
 #tmp
 import pandas as pd
-from callback import DisplayCallBack
+from loss import action_loss
 
 
 class Agent:
@@ -22,16 +22,8 @@ class Agent:
     def __init__(self, num_actions, optimizer=tf.keras.optimizers.Adam(), loss=tf.keras.losses.Huber()):
         self.eps = 1.0
         self.num_actions = num_actions
-
-        self.q_net = self.construct_model(self.num_actions)
-        self.q_net.compile(optimizer=optimizer, loss=loss)
-        self.target_net = self.construct_model(self.num_actions)
-        self.target_net.compile(optimizer=optimizer, loss=loss)
-
-        self.q_net.set_weights(self.target_net.weights)
-
-        self.t = 0
-
+        self.optimizer = optimizer
+        
         self.FINAL_EPS = 0.1
         self.INITIAL_REPLAY_SIZE = 1000
         self.NUM_REPLAY_MEMORY = 20000
@@ -40,6 +32,17 @@ class Agent:
         self.BATCH_SIZE = 32
         self.GAMMA = 0.99
         self.epsilon_step = 0.5 * 1e-4
+
+        self.q_net = self.construct_model(self.num_actions)
+        self.q_net.compile(optimizer=optimizer)
+        self.target_net = self.construct_model(self.num_actions)
+        self.target_net.compile(optimizer=optimizer)
+
+        #self.q_net.set_weights(self.target_net.weights) #cant use deepcopy
+        self.update_target_net()
+
+        self.t = 0
+
         
 
         self.episode_memory: deque = deque(maxlen=self.NUM_REPLAY_MEMORY)
@@ -47,15 +50,7 @@ class Agent:
 
     def _get_action(self, state) -> int:
         q = sys.float_info.min
-        n = 0
-        for i in range(self.num_actions):
-            #a = self.q_net.predict(state)
-            x = np.concatenate([state, [[i]]], axis=1)
-            pd.to_pickle(x, "x.pkl")
-            a = self.q_net(x)
-            #print(a)
-            if q < a:
-                n = i
+        n = np.argmax(self.q_net(state)) #Q値最大のactionを選択
         assert n >= 0 and n <= self.num_actions
         return n
 
@@ -75,7 +70,7 @@ class Agent:
 
         if self.t > self.INITIAL_REPLAY_SIZE:
             if self.t % self.TRAIN_INTERVAL == 0:
-                self.train_network()
+                self.train_network_batch()
 
             if self.t % self.TARGET_UPDATE_INTERVAL == 0:
                 self.q_net.set_weights(self.target_net.weights)
@@ -135,9 +130,17 @@ class Agent:
         next_Qs = np.max(self.target_net.predict(next_states), axis=1) #max_a(Q_{target}(s', a))
         target_value = rewards * (1 - dones) * self.GAMMA * next_Qs 
 
-        selected_actions_onehot = tf.one_hot(actions, self.num_actions)
+        print("=====================")
+        print(f"states:{type(states)}, actions:{type(actions)}, target_values:{type(target_value)}")
+        print(f"states:{states.shape}, actions:{actions.shape}, target_values:{target_value.shape}")
+        print("=====================")
 
-    def get_minibatch(self) -> Tuple(np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray):
+        loss_class = action_loss(selected_actions=actions, num_actions=self.num_actions)
+
+        self.q_net.compile(optimizer=self.optimizer, loss=loss_class.loss)
+        self.q_net.fit(x=states, y=target_value, batch_size=self.BATCH_SIZE, epochs=1)
+
+    def get_minibatch(self):
         state_batch = []
         action_batch = []
         reward_batch = []
@@ -163,9 +166,16 @@ class Agent:
     def update_target_net(self):
         for i in range(len(self.target_net.weights)):
             self.target_net.weights[i].assign(self.q_net.weights[i]) #代入
+        print("==========================================")
+        print(f"q_net{[w.numpy().shape for w in self.q_net.weights]}")
+        print(f"target_net{[w.numpy().shape for w in self.target_net.weights]}")
+        print("==========================================")
+        #self.target_net.set_weights(self.q_net.weights)
+        for i in range(len(self.target_net.weights)):
+            self.target_net.weights[i].assign(self.q_net.weights[i]) #代入
         
-        x = np.ones(shape=(1, 5))
-        assert self.q_net(x) == self.target_net(x) #計算結果が同じでなければならない
+        x = np.ones(shape=(self.BATCH_SIZE, 4))
+        assert self.q_net.predict(x) == self.target_net.predict(x) #計算結果が同じでなければならない
 
 
 
