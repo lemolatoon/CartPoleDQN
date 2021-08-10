@@ -15,6 +15,7 @@ import statistics
 #tmp
 import pandas as pd
 from loss import action_loss
+from network import Qnetwork
 
 
 class Agent:
@@ -33,10 +34,15 @@ class Agent:
         self.GAMMA = 0.99
         self.epsilon_step = 0.5 * 1e-4
 
+        """
         self.q_net = self.construct_model(self.num_actions)
         self.q_net.compile(optimizer=optimizer)
         self.target_net = self.construct_model(self.num_actions)
         self.target_net.compile(optimizer=optimizer)
+        """
+
+        self.q_net = Qnetwork(self.num_actions)
+        self.target_net = Qnetwork(self.num_actions)
 
         #self.q_net.set_weights(self.target_net.weights) #cant use deepcopy
         self.update_target_net()
@@ -73,7 +79,7 @@ class Agent:
                 self.train_network_batch()
 
             if self.t % self.TARGET_UPDATE_INTERVAL == 0:
-                self.q_net.set_weights(self.target_net.weights)
+                self.update_target_net()
         
         self.t += 1
 
@@ -130,15 +136,8 @@ class Agent:
         next_Qs = np.max(self.target_net.predict(next_states), axis=1) #max_a(Q_{target}(s', a))
         target_value = rewards * (1 - dones) * self.GAMMA * next_Qs 
 
-        print("=====================")
-        print(f"states:{type(states)}, actions:{type(actions)}, target_values:{type(target_value)}")
-        print(f"states:{states.shape}, actions:{actions.shape}, target_values:{target_value.shape}")
-        print("=====================")
 
-        loss_class = action_loss(selected_actions=actions, num_actions=self.num_actions)
-
-        self.q_net.compile(optimizer=self.optimizer, loss=loss_class.loss)
-        self.q_net.fit(x=states, y=target_value, batch_size=self.BATCH_SIZE, epochs=1)
+        self.q_net.update(states=states, selected_actions=actions, target_values=target_value)
 
     def get_minibatch(self):
         state_batch = []

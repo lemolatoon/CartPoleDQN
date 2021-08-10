@@ -2,24 +2,23 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import numpy as np
 
-class Qnetwork(tf.keras.Model()):
+class Qnetwork(tf.keras.Model):
 
     def __init__(self, num_actions, learning_rate=0.001):
 
+        super().__init__()
 
         self.num_actions = num_actions
 
-        inputs = tf.keras.Input(shape=(4,)) #state
-        x = layers.Dense(128, activation="relu", kernel_initializer="he_normal")(inputs)
-        x = layers.Dense(128, activation="relu", kernel_initializer="he_normal")(x)
-        outputs = layers.Dense(num_actions, kernel_initializer="he_normal")(x) #action(one-hot)
-
-        super().__init__(inputs=inputs, outputs=outputs)
+        self.dense1 = layers.Dense(128, activation="relu", kernel_initializer="he_normal")
+        self.dense2 = layers.Dense(128, activation="relu", kernel_initializer="he_normal")
+        self.out = layers.Dense(num_actions, kernel_initializer="he_normal") #action(one-hot)
 
 
+
+        x = tf.ones(shape=4)
+        self.predict(x)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-
-        self.summary()
 
     
     @tf.function
@@ -37,7 +36,7 @@ class Qnetwork(tf.keras.Model()):
     def update(self, states, selected_actions, target_values):
         selected_actions_onehot = tf.one_hot(selected_actions, self.num_actions)
 
-        with tf.GradientTape as tape:
+        with tf.GradientTape() as tape:
             #onehotを掛け選んだ行動のみを総和として算出(actionの次元をなくした)
             selected_actions_values = tf.reduce_sum(self(states) * selected_actions_onehot, axis=1) 
 
