@@ -33,12 +33,12 @@ class Agent:
 
         self.FINAL_EPS = 0.1
         self.INITIAL_REPLAY_SIZE = 10000
-        self.NUM_REPLAY_MEMORY = 10000
+        self.NUM_REPLAY_MEMORY = 40000
         self.TRAIN_INTERVAL = 4
         self.TARGET_UPDATE_INTERVAL = 10000
         self.BATCH_SIZE = 32
         self.GAMMA = 0.99
-        self.epsilon_step = 0.5 * 1e-4
+        self.epsilon_step = 1e-4
         
 
         self.episode_memory: deque = deque(maxlen=self.NUM_REPLAY_MEMORY)
@@ -91,7 +91,10 @@ class Agent:
 
         y_batch = []
 
-        minibatch = random.sample(self.episode_memory, self.BATCH_SIZE)
+        size = len(self.episode_memory)
+
+        #minibatch = random.sample(self.episode_memory, self.BATCH_SIZE)
+        minnibatch = self.episode_memory
         for data in minibatch:
             state_batch.append(data[0])
             action_batch.append(data[1])
@@ -120,7 +123,8 @@ class Agent:
         x_train = np.concatenate([state_batch, action_batch.reshape(-1, 1)], axis=1) #equation右辺のQの引数
         
 
-        self.q_net.fit(np.concatenate([state_batch, action_batch], axis=1), y_batch, epochs=int(self.NUM_REPLAY_MEMORY / self.BATCH_SIZE), verbose=0) #verbose=0でno log
+        self.q_net.fit(np.concatenate([state_batch, action_batch], axis=1), y_batch, epochs=int(self.BATCH_SIZE * 4), verbose=0, batch_size=self.BATCH_SIZE) #verbose=0でno log
+        #epochsが10だと少ない
 
     
     def update_target_net(self):
