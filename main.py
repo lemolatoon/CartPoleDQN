@@ -14,6 +14,7 @@ import statistics
 
 #tmp
 import pandas as pd
+from callback import DisplayCallBack
 
 
 class Agent:
@@ -32,13 +33,13 @@ class Agent:
         self.t = 0
 
         self.FINAL_EPS = 0.1
-        self.INITIAL_REPLAY_SIZE = 10000
-        self.NUM_REPLAY_MEMORY = 40000
+        self.INITIAL_REPLAY_SIZE = 1000
+        self.NUM_REPLAY_MEMORY = 100000
         self.TRAIN_INTERVAL = 4
-        self.TARGET_UPDATE_INTERVAL = 10000
+        self.TARGET_UPDATE_INTERVAL = 10
         self.BATCH_SIZE = 32
         self.GAMMA = 0.99
-        self.epsilon_step = 1e-4
+        self.epsilon_step = 0.5 * 1e-4
         
 
         self.episode_memory: deque = deque(maxlen=self.NUM_REPLAY_MEMORY)
@@ -94,7 +95,7 @@ class Agent:
         size = len(self.episode_memory)
 
         #minibatch = random.sample(self.episode_memory, self.BATCH_SIZE)
-        minnibatch = self.episode_memory
+        minibatch = self.episode_memory
         for data in minibatch:
             state_batch.append(data[0])
             action_batch.append(data[1])
@@ -121,11 +122,12 @@ class Agent:
         y_batch = reward_batch + (1 - done_batch) * self.GAMMA * target_q_values_batch #equationの右辺
 
         action_batch = action_batch.reshape(-1, 1) #state_batchと結合するためのreshape
-        x_train = np.concatenate([state_batch, action_batch.reshape(-1, 1)], axis=1) #equation右辺のQの引数
+        x_train = np.concatenate([state_batch, action_batch], axis=1) #equation右辺のQの引数
         
 
-        self.q_net.fit(np.concatenate([state_batch, action_batch], axis=1), y_batch, epochs=int(self.BATCH_SIZE * 4), verbose=0, batch_size=self.BATCH_SIZE) #verbose=0でno log
-        #epochsが10だと少ない
+        self.q_net.fit(        #epochsが10だと少ない
+            x_train, y_batch, epochs=5, verbose=0, batch_size=self.BATCH_SIZE) #verbose=0でno log
+
 
     
     def update_target_net(self):
@@ -179,7 +181,7 @@ def main():
                 #print(f"reward:{reward}")
                 reward_sum = reward_sum + reward
                 #print(f"reward_sum:{reward_sum}")
-                env.render()
+                #env.render()
                 agent.memory(state, action, reward, next_state, done)
 
             rewards.append(reward_sum)
