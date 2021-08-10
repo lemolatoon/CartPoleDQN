@@ -39,6 +39,26 @@ def sample():
     a = a.reshape((4, 1))
     print(a)
 
+def play():
+
+    env = gym.make("CartPole-v0")
+    for i in range(10):
+        obserbation = env.reset()
+        for t in range(1000):
+            env.render()
+            steps = env.step(env.action_space.sample())
+            print(steps)
+            observation, reward, done, info = steps            
+            if done:
+                print(f"Episode {i} finished after {t} timesteps")
+                break
+
+    env.close()
+
+def inputs():
+    while True:
+        pass
+
 
 if __name__ == "__main__":
-    sample()
+    play()

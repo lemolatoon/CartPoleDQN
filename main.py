@@ -8,10 +8,12 @@ import sys
 import copy
 from collections import deque
 import random
+import tqdm
+
+import statistics
 
 #tmp
 import pandas as pd
-from tensorflow.python.autograph.operators.py_builtins import next_
 
 
 class Agent:
@@ -30,16 +32,16 @@ class Agent:
         self.t = 0
 
         self.FINAL_EPS = 0.1
-        self.INITIAL_REPLAY_SIZE = 100
-        self.NUM_REPLAY_MEMORY = 400000
+        self.INITIAL_REPLAY_SIZE = 10000
+        self.NUM_REPLAY_MEMORY = 10000
         self.TRAIN_INTERVAL = 4
         self.TARGET_UPDATE_INTERVAL = 10000
         self.BATCH_SIZE = 32
         self.GAMMA = 0.99
-        self.epsilon_step = 1e-2
+        self.epsilon_step = 0.5 * 1e-4
         
 
-        self.episode_memory: deque = deque(maxlen=400000)
+        self.episode_memory: deque = deque(maxlen=self.NUM_REPLAY_MEMORY)
         
 
     def _get_action(self, state) -> int:
@@ -81,7 +83,6 @@ class Agent:
 
 
     def train_network(self):
-        print("学習するよ")
         state_batch = []
         action_batch = []
         reward_batch = []
@@ -104,47 +105,31 @@ class Agent:
         next_state_batch = np.array(next_state_batch)
         done_batch = np.array(done_batch, dtype=int)
 
-        target_q_values_batch = np.zeros((self.BATCH_SIZE, 1))
+        target_q_values_batch = np.zeros((self.BATCH_SIZE,)) #memory確保
+
         for i in range(self.num_actions): #すべてのactionについてq値を計算
             #print(np.array(next_state_batch).shape)
             #print(np.concatenate([next_state_batch, np.full(shape=(self.BATCH_SIZE, 1), fill_value=i)], axis=1))
-            x = np.concatenate([next_state_batch, np.full(shape=(self.BATCH_SIZE, 1), fill_value=i)], axis=1)
+            x = np.concatenate([next_state_batch, np.full(shape=(self.BATCH_SIZE, 1), fill_value=i)], axis=1) #(s, a)を結合
             y = self.target_net(np.array(x))
-            print(f"y.shape{y.shape}")
-            target_q_values_batch = np.maximum(y, target_q_values_batch)
-            print(f"target_q_values_batch:{target_q_values_batch.shape}")
-        y_batch = reward_batch + (1 - done_batch) * self.GAMMA * target_q_values_batch
-        print(f"reward_batch:{reward_batch.shape}")
-        print(f"1 - done_batch{(1 - done_batch).shape}")
+            y = y.numpy().reshape(-1) #縦のべくとるを横のベクトルにする
+            target_q_values_batch = np.maximum(y, target_q_values_batch) #各アクションの中で最も大きいものを取る
+        y_batch = reward_batch + (1 - done_batch) * self.GAMMA * target_q_values_batch #equationの右辺
 
-        print(f"y_batch:{y_batch.shape}")
-        x_train = np.concatenate([state_batch, action_batch], axis=1)
-        print(f"x_train:{x_train.shape}")
+        action_batch = action_batch.reshape(-1, 1) #state_batchと結合するためのreshape
+        x_train = np.concatenate([state_batch, action_batch.reshape(-1, 1)], axis=1) #equation右辺のQの引数
+        
 
-        self.q_net.fit(np.concatenate([state_batch, action_batch], axis=1), y_batch, epochs=10)
+        self.q_net.fit(np.concatenate([state_batch, action_batch], axis=1), y_batch, epochs=int(self.NUM_REPLAY_MEMORY / self.BATCH_SIZE), verbose=0) #verbose=0でno log
 
     
     def update_target_net(self):
         for i in range(len(self.target_net.weights)):
             self.target_net.weights[i].assign(self.q_net.weights[i]) #代入
-
-
-    def run_episode(self, initial_state: np.array, model: tf.keras.Model, max_steps: int, eps=0.3) -> Any:
-        """
-        states = tf.TensorArray(dtype=tf.float32, size=0, dynamic_size=True)
-        actions = tf.TensorArray(dtype=tf.float32, size=0, dynamic_size=True)
-        rewards = tf.TensorArray(dtype=tf.float32, size=0, dynamic_size=True)
-        next_states = tf.TensorArray(dtype=tf.float32, size=0, dynamic_size=True)
-        """
-
-        episode = np.zeros((max_steps, 5))
         
+        x = np.ones(shape=(1, 5))
+        assert self.q_net(x) == self.target_net(x) #計算結果が同じでなければならない
 
-        initial_state_shape = initial_state.shape
-        state = initial_state
-
-        for t in tf.range(max_steps):
-            state = tf.expand_dims(state, 0)
 
 
 
@@ -170,21 +155,35 @@ def main():
     NUM_EPISODES = 12000
 
     env: gym.Env = gym.make("CartPole-v0")
-    agent = Agent(env.action_space.n)
+
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+
+    agent = Agent(env.action_space.n, optimizer=optimizer)
 
     old_t = 0
-    for i in tf.range(NUM_EPISODES):
-        done = False
-        state = env.reset()
-        while not done:
-            action = agent.get_action(state.reshape(1, 4))
-            next_state, reward, done, _ = env.step(action)
-            env.render()
-            agent.memory(state, action, reward, next_state, done)
-        if i % 10 == 0:
-            print(f"Episode {i} finished after {agent.t - old_t} timesteps")
-            old_t = agent.t
+    with tqdm.trange(NUM_EPISODES) as t:
+        for i in t:
+            done = False
+            reward_sum = 0
+            state = env.reset()
+            rewards: deque = deque(maxlen=100)
+
+            while not done:
+                action = agent.get_action(state.reshape(1, 4))
+                next_state, reward, done, _ = env.step(action)
+                #print(f"reward:{reward}")
+                reward_sum = reward_sum + reward
+                #print(f"reward_sum:{reward_sum}")
+                env.render()
+                agent.memory(state, action, reward, next_state, done)
+
+            rewards.append(reward_sum)
+            avg_reward = statistics.mean(rewards)
         
+            t.set_description(f"Episode {i}")
+            t.set_postfix(running_reward=reward_sum, avg_reward=avg_reward, epsilon=agent.eps)
+
+    pd.to_pickle("agent.pkl", agent)
 
         
 
