@@ -59,6 +59,10 @@ def inputs():
     while True:
         pass
 
+def test2():
+    env = gym.make("CartPole-v0")
+    print(env.action_space)
+
 
 if __name__ == "__main__":
-    play()
+    test2()

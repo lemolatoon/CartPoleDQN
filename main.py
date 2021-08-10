@@ -23,12 +23,12 @@ class Agent:
         self.eps = 1.0
         self.num_actions = num_actions
 
-        self.q_net = self.construct_model()
+        self.q_net = self.construct_model(self.num_actions)
         self.q_net.compile(optimizer=optimizer, loss=loss)
-        self.target_net = self.construct_model()
+        self.target_net = self.construct_model(self.num_actions)
         self.target_net.compile(optimizer=optimizer, loss=loss)
 
-        self.update_target_net() #deepcopyだめ
+        self.q_net.set_weights(self.target_net.weights)
 
         self.t = 0
 
@@ -36,7 +36,7 @@ class Agent:
         self.INITIAL_REPLAY_SIZE = 1000
         self.NUM_REPLAY_MEMORY = 20000
         self.TRAIN_INTERVAL = 4
-        self.TARGET_UPDATE_INTERVAL = 10
+        self.TARGET_UPDATE_INTERVAL = 250
         self.BATCH_SIZE = 32
         self.GAMMA = 0.99
         self.epsilon_step = 0.5 * 1e-4
@@ -78,7 +78,7 @@ class Agent:
                 self.train_network()
 
             if self.t % self.TARGET_UPDATE_INTERVAL == 0:
-                self.update_target_net()
+                self.q_net.set_weights(self.target_net.weights)
         
         self.t += 1
 
@@ -133,7 +133,9 @@ class Agent:
         states, actions, rewards, next_states, dones = self.get_minibatch()
 
         next_Qs = np.max(self.target_net.predict(next_states), axis=1) #max_a(Q_{target}(s', a))
-        pass
+        target_value = rewards * (1 - dones) * self.GAMMA * next_Qs 
+
+        selected_actions_onehot = tf.one_hot(actions, self.num_actions)
 
     def get_minibatch(self) -> Tuple(np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray):
         state_batch = []
@@ -168,16 +170,20 @@ class Agent:
 
 
 
-    def construct_model(self, input_shape=(5,)) -> tf.keras.Model:
+    def construct_model(self, num_actions, input_shape=(5,)) -> tf.keras.Model:
+        """
         inputs = tf.keras.Input(shape=input_shape)
         x = layers.Dense(16, activation="relu")(inputs)
         outputs = layers.Dense(1)(x)
         model = tf.keras.Model(inputs=inputs, outputs=outputs)
+        """
 
 
-        #model = tf.keras.Sequential()
-        #model.add(layers.Dense(16, activation="relu", input_shape=input_shape))
-        #model.add(layers.Dense(3, input_shape=input_shape, activation=tf.keras.activations.linear))
+        inputs = tf.keras.Input(shape=(4,)) #state
+        x = layers.Dense(128, activation="relu", kernel_initializer="he_normal")(inputs)
+        x = layers.Dense(128, activation="relu", kernel_initializer="he_normal")(x)
+        outputs = layers.Dense(num_actions, kernel_initializer="he_normal")(x) #action(one-hot)
+        model = tf.keras.Model(inputs=inputs, outputs=outputs)
 
         model.summary()
 
