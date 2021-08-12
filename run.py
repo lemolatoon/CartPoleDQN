@@ -9,6 +9,8 @@ from network import Qnetwork
 class Agent:
 
     BATCH_SIZE = 32
+
+    GAMMA = 0.95
     
     def __init__(self, action_num):
         self.action_num = action_num
@@ -18,15 +20,26 @@ class Agent:
 
         self.weight_copy()
 
+        self.epsilon = 0.1
+
     def weight_copy(self):
         self.target_net.set_weights(self.q_net.get_weights()) #重みをあわせる
 
 
     def get_action(self, state) -> int:
-        return 1
+        if self.epsilon < np.random.randint(): 
+            return  np.argmax(self.q_net.predict(state), axis=1)
+        else:
+            return np.random.randint(self.action_num)
 
-    def train_q_net(states, actions, rewards, next_states, dones):
-        pass
+    def train_q_net(self, states, actions, rewards, next_states, dones):
+        #right of equation (if done: value->r_{t+1})
+
+        #s_{t+1}で得られるQ値のうち最大値(をとるaのときのQ値)
+        next_Qs = np.max(self.target_net.predict(next_states), axis=1) 
+        rights = [reward + self.GAMMA * next_Q if not done else reward for reward, next_Q, done in zip(rewards, next_Qs, dones)]
+
+        self.q_net.update(np.array(states), np.array(actions), np.array(rights))
 
 
 class GameMaster():
@@ -40,7 +53,7 @@ class GameMaster():
     TRAIN_INTERVAL = 2
     WEIGHT_COPY_INTERVAL = 25
 
-    RENDER: bool = True
+    RENDER: bool = False
 
     def __init__(self):
         self.env: gym.Env = gym.make(self.ENV_NAME)
