@@ -3,6 +3,9 @@ import gym
 from collections import deque
 import numpy as np
 import tqdm
+import pandas as pd
+
+import matplotlib.pyplot as plt
 
 from network import Qnetwork
 
@@ -27,10 +30,14 @@ class Agent:
 
 
     def get_action(self, state) -> int:
-        if self.epsilon < np.random.randint(): 
-            return  np.argmax(self.q_net.predict(state), axis=1)
+        n: int
+        if self.epsilon < np.random.randn(): 
+            n = np.argmax(self.q_net.predict(state))
         else:
-            return np.random.randint(self.action_num)
+            n = np.random.randint(self.action_num)
+        assert n >= 0
+        assert n < self.action_num
+        return n
 
     def train_q_net(self, states, actions, rewards, next_states, dones):
         #right of equation (if done: value->r_{t+1})
@@ -44,7 +51,7 @@ class Agent:
 
 class GameMaster():
 
-    ENV_NAME = "CartPole-v0"
+    ENV_NAME = "CartPole-v1"
     EXPERIENCE_SIZE = 10000
 
     WAIT_STEPS_BEFORE_TRAIN = 250
@@ -130,27 +137,37 @@ class GameMaster():
         return np.sum(np.array(rewards))
 
     def run_episodes(self, episodes_num):
-        with tqdm.trange(episodes_num) as iter: #progress bar
-            rewards = []
-            for episode in iter:
-                reward: int
-                if episode <= self.WAIT_STEPS_BEFORE_TRAIN:
-                    #最低step数以下のときにはランダムアクションでepisode実行
-                    reward = self.run_episode(random=True)
-                    rewards.append(reward)
-                else:
-                    reward = self.run_episode(random=False)
-                    rewards.append(reward)
+        rewards = []
+        try:
+            with tqdm.trange(episodes_num) as iter: #progress bar
+                for episode in iter:
+                    reward: int
+                    if episode <= self.WAIT_STEPS_BEFORE_TRAIN:
+                        #最低step数以下のときにはランダムアクションでepisode実行
+                        reward = self.run_episode(random=True)
+                        rewards.append(reward)
+                    else:
+                        reward = self.run_episode(random=False)
+                        rewards.append(reward)
 
-
-                avg_reward = np.mean(np.array(rewards))
+                    #直近100episodes平均
+                    avg_reward = np.mean(np.array(rewards[-100:]))
 
                 #progress bar description
                 iter.set_description(f"Episode {episode}")
                 iter.set_postfix(avg_reward=avg_reward ,reward=reward)
 
+        except KeyboardInterrupt:
+            print("train was interrupted as KeyboardInterrupt")
+            self.history(rewards)
 
-
+    def history(self, rewards):
+        pd.to_pickle(rewards, "rewards.pkl")
+        plt.plot(range(len(rewards)), rewards)
+        plt.plot([0, 400], [195, 195], "--", color="darkred")
+        plt.xlabel("episodes")
+        plt.ylabel("Total Reward")
+        plt.savefig("rewards_fig.jpg")
 
     def test(self):
         self.one_step(self.env.reset())
