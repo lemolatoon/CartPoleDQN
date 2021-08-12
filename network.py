@@ -30,6 +30,9 @@ class Qnetwork(tf.keras.Model):
 
     
     def predict(self, state):
+        """
+        return : shape=(None, 2) ;axis1 values are Q-value for each actions
+        """
         state = np.atleast_2d(state).astype(np.float32)
         return self(state).numpy()
 
